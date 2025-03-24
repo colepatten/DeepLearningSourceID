@@ -1,0 +1,315 @@
+---
+title: "x3p_processing"
+author: "Cole Patten"
+date: "2024-06-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## import libraries
+```{r}
+library(cmcR)
+library(x3ptools)
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+```
+
+## Set path for reading x3ps
+```{r}
+read_path <- "/Users/colepatten/Desktop/NBIDE/cc/"
+
+#record names of x3p files
+files <- list.files(path=read_path, pattern = "\\.x3p$")
+```
+
+## function to view x3p image
+```{r}
+plot_im <- function(x3p_im){
+  x3p_image(x3p_im, size=dim(x3p_im$surface.matrix), zoom=0.75, useNULL=TRUE)
+}
+```
+
+## 
+```{r}
+cur_file = files[1]
+im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+x3p_image(im, size=dim(im$surface.matrix), zoom=0.5, useNULL=TRUE)
+```
+
+
+## load all files, downsample high resolution files, then save
+```{r}
+# path to write downsampled files
+write_path = "/Users/colepatten/Desktop/NBIDE/x3p_downsampled/"
+
+# load x3ps, downsample by factor of 4, save
+for (i in 1:108){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+  im_down <- im %>%
+    x3p_sample(m=2)
+  x3p_write(im_down, file=paste0(write_path, cur_file))
+}
+
+# load x3ps, save
+for (i in 109:144){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+  x3p_write(im, file=paste0(write_path, cur_file))
+}
+```
+
+## level all images to breech face place
+```{r}
+# new paths
+read_path = "/Users/colepatten/Desktop/NBIDE/x3p_downsampled/"
+write_path = "/Users/colepatten/Desktop/NBIDE/x3p_leveled/"
+
+# load all x3ps, downsample higher resolution images by factor of 4, save
+for (i in 1:length(files)){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+  im_level <- im %>%
+    preProcess_ransacLevel()
+  
+  #x3p_image(im_level, size=dim(im$surface.matrix), zoom=0.75, useNULL=TRUE)
+  x3p_write(im_level, file=paste0(write_path, cur_file))
+}
+```
+
+## crop images to breech face only
+```{r}
+# new paths
+read_path = "/Users/colepatten/Desktop/NBIDE/x3p_leveled/"
+write_path = "/Users/colepatten/Desktop/NBIDE/x3p_cropped/"
+
+#load images, remove FP, crop interior and exterior, save images
+for (i in 1:length(files)){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+  im_cropped <- im %>%
+    preProcess_removeFPCircle() %>%
+    preProcess_erode(region="exterior", morphRadius=10) %>%
+    preProcess_erode(region="interior", morphRadius=20) 
+    
+  
+  #x3p_image(im_cropped, size=dim(im_cropped$surface.matrix), zoom=0.75, useNULL=TRUE)
+  x3p_write(im_cropped, file=paste0(write_path, cur_file))
+}
+```
+
+```{r}
+read_path <- "/Users/colepatten/Desktop/NBIDE/x3p_downsampled/"
+cur_file <- files[133]
+bad_im <- x3ptools::x3p_read(paste0(read_path, cur_file))
+bad_im2 <- bad_im %>%
+  preProcess_ransacLevel()
+plot_im(bad_im2)
+```
+
+```{r}
+write_path <- "/Users/colepatten/Desktop/NBIDE/x3p_leveled/"
+x3p_write(bad_im2, file=paste0(write_path, cur_file))
+
+```
+
+## we may have gone too far in cropping some images
+## they should be checked and the bad ones should be manually cropped
+
+```{r}
+leveled_path <- "/Users/colepatten/Desktop/NBIDE/x3p_leveled/"
+cropped_path <- "/Users/colepatten/Desktop/NBIDE/x3p_cropped/"
+
+cur_file <- files[8]
+num_files <- length(list.files(path=write_path, pattern = "\\.x3p$"))
+
+im_leveled <- x3ptools::x3p_read(paste0(leveled_path, cur_file))
+im_cropped <- x3ptools::x3p_read(paste0(cropped_path, cur_file))
+im_pure <- im_cropped
+
+print(paste(num_files, ":", cur_file))
+x3pListPlot(list(im_leveled, im_cropped))
+```
+
+## if the automated cropping failed, manually edit the scan
+```{r}
+im_pure <- im_leveled %>%
+  preProcess_erode(region="exterior", morphRadius=10) %>%
+  #preProcess_erode(region="interior", morphRadius=30) %>%
+  preProcess_erode(region="interior", morphRadius=20)
+
+x3pListPlot(list(im_leveled, im_cropped, im_pure))
+```
+
+## save either im_leveled, im_cropped, or im_pure to x3p_pure
+```{r}
+write_path <- "/Users/colepatten/Desktop/NBIDE/x3p_pure/"
+x3p_write(im_pure, file=paste0(write_path, cur_file))
+```
+
+## check all images against their pre-cropped version to see if there were errors made
+```{r}
+pure_path <- "/Users/colepatten/Desktop/NBIDE/x3p_pure/"
+i <- 144
+im_1 <- x3ptools::x3p_read(paste0(leveled_path, files[i]))
+im_2 <- x3ptools::x3p_read(paste0(pure_path, files[i]))
+
+x3pListPlot(list(im_1, im_2))
+```
+
+## level all images and apply Gaussian filter
+```{r}
+pure_path <- "/Users/colepatten/Desktop/NBIDE/x3p_pure/"
+processed_path <- "/Users/colepatten/Desktop/NBIDE/x3p_processed/"
+
+#load images, level, apply Gaussain filter, save
+for (i in 1:length(files)){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(pure_path, cur_file))
+  im_cropped <- im %>%
+    preProcess_removeTrend(statistic = "quantile", tau = .5, method = "fn") %>%
+    preProcess_gaussFilter()
+  
+  #x3p_image(im_cropped, size=dim(im_cropped$surface.matrix), zoom=0.75, useNULL=TRUE)
+  x3p_write(im_cropped, file=paste0(processed_path, cur_file))
+}
+```
+
+## check around to make sure data is consistent
+```{r}
+processed_path <- "/Users/colepatten/Desktop/NBIDE/x3p_processed/"
+
+x3ps <- list()
+for (i in 1:length(files)){
+  cur_file = files[i]
+  im <- x3ptools::x3p_read(paste0(processed_path, cur_file))
+  x3ps <- append(x3ps, list(im))
+  names(x3ps)[i] <- cur_file
+}
+```
+
+## grab the x, y dimension of each scan, as well as the resolution.
+## Check the minimum and maximum of each
+```{r}
+sizeXs <- integer(length=length(x3ps))
+sizeYs <- integer(length=length(x3ps))
+incrementXs <- integer(length=length(x3ps))
+incrementYs <- integer(length=length(x3ps))
+
+for (i in 1:length(x3ps)){
+  sizeXs[i] <- x3ps[[i]]$header.info$sizeX
+  sizeYs[i] <- x3ps[[i]]$header.info$sizeY
+  incrementXs[i] <- x3ps[[i]]$header.info$incrementX
+  incrementYs[i] <- x3ps[[i]]$header.info$incrementY
+
+}
+cat(paste(paste("sizeX: min:", min(sizeXs), "| max:", max(sizeXs)),
+            paste("sizeY: min:", min(sizeYs), "| max:", max(sizeYs)),
+            paste("incrementX: min:", min(incrementXs), "| max:", max(incrementXs)),
+            paste("incrementY: min:", min(incrementYs), "| max:", max(incrementYs)),
+            sep="\n"))
+```
+## lastly, we want to combine the images with data about which gun fired them ...
+## in order to test our verification methods.
+## here we will combine the data, then export as a csv to use in python
+```{r}
+library(readxl)
+```
+
+```{r}
+excel_path <- "/Users/colepatten/Desktop/NBIDE/StudyInfo.xlsx"
+sheets <- excel_sheets(excel_path)
+print(sheets)
+```
+
+```{r}
+read_and_clean_sheet <- function(file_path, sheet_name) {
+  # Read the sheet, starting from the second row
+  raw_data <- read_excel(file_path, sheet = sheet_name, skip = 0)
+  
+  # Set the column names to the first row of raw_data and remove that row
+  colnames(raw_data) <- raw_data[1, ]
+  clean_data <- raw_data[-1, ]
+  
+  # Return the cleaned data frame
+  return(clean_data)
+}
+```
+
+```{r}
+# Read and clean each sheet into a list of data frames
+data_list <- lapply(sheets, function(sheet) {
+  read_and_clean_sheet(excel_path, sheet)
+})
+
+# Name the list elements with the sheet names
+names(data_list) <- sheets
+
+# Print the first few rows of each data frame to check the import
+lapply(data_list, head)
+```
+
+## rename columns in the orignal data frame in order to allow for merging
+```{r}
+names(data_list$Firearm)[names(data_list$Firearm) == "Firearm Name"] <- "Firearm"
+names(data_list$Firearm)[names(data_list$Firearm) == "Brand"] <- "Firearm_Brand"
+names(data_list$Firearm)[names(data_list$Firearm) == "Model"] <- "Firearm_Model"
+
+names(data_list$`Cartridge Case`)[names(data_list$`Cartridge Case`) == "Specimen ID"] <- "Specimen"
+names(data_list$`Cartridge Case`)[names(data_list$`Cartridge Case`) == "Firearm Name"] <- "Firearm"
+names(data_list$`Cartridge Case`)[names(data_list$`Cartridge Case`) == "Brand"] <- "Cartridge_Brand"
+
+names(data_list$`Cartridge Case Measurement`)[names(data_list$`Cartridge Case Measurement`) == 
+                                                "Specimen Name"] <-
+  "Specimen"
+names(data_list$`Cartridge Case Measurement`)[names(data_list$`Cartridge Case Measurement`) == 
+                                                "File Name"] <-
+  "File"
+
+```
+
+## reduce data frames to only the need columns
+```{r}
+firearm_df <- data_list$Firearm[1:12, c("Firearm", "Firearm_Brand", "Firearm_Model")]
+cartridge_df <- data_list$`Cartridge Case`[1:144,c("Specimen", "Firearm", "Cartridge_Brand")]
+file_df <- data_list$`Cartridge Case Measurement`[1:144, c("Specimen", "File")]
+```
+
+## merge into new data frame with relevant data
+```{r}
+dat <- right_join(x=firearm_df,
+           y=cartridge_df,
+           by = "Firearm",
+           relationship="one-to-many")
+dat <- inner_join(x=dat,
+           y=file_df,
+           by="Specimen",
+           relationship="one-to-one")
+```
+
+## save this file
+```{r}
+write_path <- "/Users/colepatten/Desktop/NBIDE/info.csv"
+write.csv(dat, write_path, row.names = FALSE)
+```
+
+## now we want to convert the x3ps to data frames to send to python
+```{r}
+write_path <- "/Users/colepatten/Desktop/NBIDE/x3p_dataframe/"
+for (i in 1:length(x3ps)){
+  specimen_name <- dat[dat$File == names(x3ps)[i], ]$Specimen
+  write.csv(x3p_to_df(x3ps[[i]]),
+            paste0(write_path, specimen_name, ".csv"),
+            row.names = FALSE)
+}
+
+```
+```{r}
+paste0(write_path, specimen_name, ".csv")
+```
+
