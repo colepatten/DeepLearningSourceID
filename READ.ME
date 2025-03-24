@@ -1,1 +1,29 @@
+## image_processing.RmD
 
+This is the file I used to preprocess the NBIDE images, which I used as training data. The file follows a straightforward pipeline:
+1) Downsample
+2) Level
+3) Crop 
+3.5) Verify cropping removed all of the firing pin & outer artifacts without being too agressive
+4) Gaussian filter
+5) Export as a csv
+
+For preprocessing the training images, I omitted step 3.5. This is justifiable, because anything the network learns from trace amount of a firing pin impression in the training data, will not be present in the testing data. Imperfections in cropping lead to no performance gains at best, and inhibited performance at worst. 
+
+The images after step 4 are what were used for CMC. The images from step 5 are further processed in import_images.py before being used for contrastive learning. 
+
+Note that this file saves images after each step of the preprocessing. This was done so I could track down errors as I was working through the preprocessing. Saving after each step is likely not necessary. 
+
+
+
+##import_images.py
+
+This is the file I used to preproccess the images used for CMC, into images ready to use for contrastive learning. This involves 2 steps:
+1) Compress images to 224x224
+2) Convert images to polar coordinates (shape (377x60))
+
+
+
+##train_models.py
+
+This file trains a neural network. It will need to be provided with the info.csv path and the path for the training and testing images. 
