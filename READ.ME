@@ -24,6 +24,11 @@ This is the file I used to preproccess the images used for CMC, into images read
 
 
 
+## cmcComparison_parallel
+
+This file, provided with the study info csv and the x3p images, runs the CMC algorithm on all pairs of images within the given folder of x3p files. The code automatically detects and uses all available CPU cores, and executes CMC algorithm in parallel. For the 144 images in the NBIDE dataset, which constitute over 10,000 pairs, this code took 10 days to run across 48 cores. 
+
+
 ##train_models.py
 
-This file trains a neural network. It will need to be provided with the info.csv path and the path for the training and testing images. 
+This file trains a neural network. It will need to be provided with the info.csv path and the path for the training and testing images. With access to a GPU, this code should run within a couple hours. 
