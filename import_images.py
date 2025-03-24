@@ -43,6 +43,26 @@ for spec in info['Specimen']:
 
 images_224 = np.asarray(images_224)
 
+processed_224 = images_224
+
+r0 = 50
+r1 = 110
+fit_points = [np.linspace(-111.5, 111.5, 224), np.linspace(-111.5, 111.5, 224)]
+ut, vt = np.meshgrid(np.linspace(-np.pi, np.pi, np.rint(2*np.pi*(r1-r0)).astype(int)),
+                     np.linspace(r0, r1, r1-r0), indexing='ij')
+test_points_pol = np.array([ut.ravel(), vt.ravel()]).T
+test_points_euc = np.array([ut.ravel(), vt.ravel()]).T
+test_points_euc[:,0] = test_points_pol[:,1] * np.cos(test_points_pol[:,0])
+test_points_euc[:,1] = test_points_pol[:,1] * np.sin(test_points_pol[:,0])
+test_points = test_points_euc
+test_points.shape
+    
+pro_cyls = np.zeros((144,377,60))
+for cart in range(144):
+    pro_cyls[cart] = interpn(fit_points, processed_224[cart], test_points, method="slinear").reshape(377, 60)
+    print(cart)
+
 
 ## save images
-np.save('numpy_array_images_path', images_224)
+save_path = 'polar_images_path'
+np.save(save_path, pro_cyls)
